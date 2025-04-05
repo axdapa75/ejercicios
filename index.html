@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administrador de Proyectos</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Estilos para el organigrama */
+    .org-chart {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 1rem;
+    }
+    .org-node {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px 15px;
+      text-align: center;
+      position: relative;
+      min-width: 150px;
+      margin-bottom: 10px;
+    }
+    .org-node::after {
+      content: '';
+      position: absolute;
+      width: 2px;
+      background: #dee2e6;
+      top: 100%;
+      left: 50%;
+      height: 20px;
+    }
+    .org-node:last-child::after {
+      display: none;
+    }
+    .level-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    /* Contenedor de alertas (mensajes de error y confirmación) */
+    #alertContainer {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 1050;
+      width: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container my-4">
+    <h1 class="text-center mb-4">Administrador de Proyectos</h1>
+    <!-- Contenedor para las alertas -->
+    <div id="alertContainer"></div>
+    <div class="row">
+      <!-- Formulario: Registrar/Editar Proyecto -->
+      <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+          <div class="card-header bg-primary text-white">
+            Registrar / Editar Proyecto
+          </div>
+          <div class="card-body">
+            <form id="projectForm" novalidate>
+              <div class="mb-3">
+                <label for="projectKey" class="form-label">Clave de Proyecto</label>
+                <input type="text" class="form-control" id="projectKey" required>
+                <div class="invalid-feedback">La clave de proyecto es obligatoria.</div>
+              </div>
+              <div class="mb-3">
+                <label for="projectDescription" class="form-label">Descripción del Proyecto</label>
+                <textarea class="form-control" id="projectDescription" rows="2" required></textarea>
+                <div class="invalid-feedback">La descripción es obligatoria.</div>
+              </div>
+              <div class="mb-3">
+                <label for="directorName" class="form-label">Nombre Director Asignado</label>
+                <input type="text" class="form-control" id="directorName" required>
+                <div class="invalid-feedback">Este campo es obligatorio.</div>
+              </div>
+              <div class="mb-3">
+                <label for="subdirectorName" class="form-label">Nombre Subdirector Asignado</label>
+                <input type="text" class="form-control" id="subdirectorName" required>
+                <div class="invalid-feedback">Este campo es obligatorio.</div>
+              </div>
+              <div class="mb-3">
+                <label for="managerName" class="form-label">Gerente Asignado</label>
+                <input type="text" class="form-control" id="managerName" required>
+                <div class="invalid-feedback">Este campo es obligatorio.</div>
+              </div>
+              <div class="mb-3">
+                <label for="developerName" class="form-label">Desarrollador Asignado</label>
+                <input type="text" class="form-control" id="developerName" required>
+                <div class="invalid-feedback">Este campo es obligatorio.</div>
+              </div>
+              <div class="mb-3">
+                <label for="task" class="form-label">Tarea</label>
+                <input type="text" class="form-control" id="task" required>
+                <div class="invalid-feedback">Ingrese una tarea.</div>
+              </div>
+              <div class="mb-3">
+                <label for="taskStatus" class="form-label">Status de la Tarea</label>
+                <select class="form-select" id="taskStatus" required>
+                  <option value="">Seleccione...</option>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="En Progreso">En Progreso</option>
+                  <option value="Completado">Completado</option>
+                </select>
+                <div class="invalid-feedback">Seleccione un status.</div>
+              </div>
+              <div class="mb-3">
+                <label for="daysAssigned" class="form-label">Días Asignados</label>
+                <input type="number" class="form-control" id="daysAssigned" required min="1">
+                <div class="invalid-feedback">Ingrese un número válido (mínimo 1).</div>
+              </div>
+              <div class="mb-3">
+                <label for="startDate" class="form-label">Fecha de Inicio</label>
+                <input type="date" class="form-control" id="startDate" required>
+                <div class="invalid-feedback">Seleccione la fecha de inicio.</div>
+              </div>
+              <div class="mb-3">
+                <label for="endDate" class="form-label">Fecha Final (Automática)</label>
+                <input type="date" class="form-control" id="endDate" readonly required>
+              </div>
+              <button type="submit" class="btn btn-success w-100">Guardar Proyecto</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <!-- Panel: Organigrama y Acciones -->
+      <div class="col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+            <span>Organigrama del Proyecto</span>
+            <div>
+              <button id="maintenanceBtn" class="btn btn-info btn-sm me-2">
+                <i class="fa-solid fa-tools"></i> Mantenimiento
+              </button>
+              <button id="deleteCurrentBtn" class="btn btn-danger btn-sm">
+                <i class="fa-solid fa-trash"></i> Borrar Proyecto
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="orgChartContainer">
+              <p class="text-center">No hay proyecto registrado.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> <!-- Fin de Row -->
+  </div> <!-- Fin del Container -->
+
+  <!-- Modal de Mantenimiento: Lista de Proyectos -->
+  <div class="modal fade" id="maintenanceModal" tabindex="-1" aria-labelledby="maintenanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="maintenanceModalLabel">Mantenimiento de Proyectos</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table table-striped" id="maintenanceTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Clave</th>
+                <th>Descripción</th>
+                <th>Tarea</th>
+                <th>Status</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Se generarán dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle con Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    /*********************
+     * VARIABLES GLOBALES
+     *********************/
+    let projects = [];
+    let editingIndex = -1;         // Índice del proyecto en edición (-1 si no se edita)
+    let currentProjectIndex = -1;  // Proyecto actualmente mostrado en el panel
+
+    // Cargar datos desde localStorage (simulamos una base de datos)
+    if(localStorage.getItem("projects")){
+      projects = JSON.parse(localStorage.getItem("projects"));
+      if(projects.length) {
+        currentProjectIndex = projects.length - 1;
+      }
+    }
+
+    // Actualiza el localStorage
+    function updateLocalStorage() {
+      localStorage.setItem("projects", JSON.stringify(projects));
+    }
+
+    // Función para mostrar alertas personalizadas
+    function showAlert(message, type = "info") {
+      const alertContainer = document.getElementById("alertContainer");
+      const alertDiv = document.createElement("div");
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+      alertDiv.setAttribute("role", "alert");
+      alertDiv.innerHTML = message + 
+        '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+      alertContainer.appendChild(alertDiv);
+      setTimeout(() => { alertDiv.remove(); }, 5000);
+    }
+
+    // Actualiza la fecha final (fecha de inicio + días asignados)
+    function updateFinalDate() {
+      const startVal = document.getElementById("startDate").value;
+      const daysVal = document.getElementById("daysAssigned").value;
+      if(startVal && daysVal && !isNaN(daysVal)) {
+        const startDate = new Date(startVal);
+        const days = parseInt(daysVal);
+        startDate.setDate(startDate.getDate() + days);
+        const year  = startDate.getFullYear();
+        const month = ("0" + (startDate.getMonth() + 1)).slice(-2);
+        const day   = ("0" + startDate.getDate()).slice(-2);
+        document.getElementById("endDate").value = `${year}-${month}-${day}`;
+      } else {
+        document.getElementById("endDate").value = "";
+      }
+    }
+
+    // Función para calcular la cantidad de días restantes hasta la fecha final
+    function getRemainingDays(project) {
+      const now = new Date();
+      const endDate = new Date(project.endDate);
+      const diff = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+      return diff;
+    }
+
+    // Devuelve un badge coloreado según los días restantes
+    function getTaskBadge(project) {
+      let daysRemaining = getRemainingDays(project);
+      // Si la tarea ya venció, se mostrará 0 días
+      if(daysRemaining < 0) { daysRemaining = 0; }
+      
+      let badgeClass = "";
+      if(daysRemaining < 3) {
+        badgeClass = "bg-danger";
+      } else if(daysRemaining < 5) {
+        badgeClass = "bg-warning text-dark";
+      } else {
+        badgeClass = "bg-success";
+      }
+      
+      return `<span class="badge ${badgeClass}">
+                ${project.task} - ${daysRemaining} día(s) restantes
+              </span>`;
+    }
+
+    // Construye el HTML del organigrama para un proyecto dado
+    function createOrgChart(project) {
+      return `
+        <div class="project-info mb-3">
+          <h5>Proyecto: ${project.projectKey}</h5>
+          <p>${project.projectDescription}</p>
+          <p>
+            <strong>Tarea:</strong> ${project.task} - <em>${project.taskStatus}</em> 
+            | <strong>Días Asignados:</strong> ${project.daysAssigned} 
+            | <strong>Inicio:</strong> ${project.startDate} 
+            | <strong>Final:</strong> ${project.endDate}
+          </p>
+        </div>
+        <div class="org-chart">
+          <div class="org-node">
+            <div class="level-title"><i class="fa-solid fa-user-tie"></i> Director del Área</div>
+            <div>${project.directorName}</div>
+            <div>${getTaskBadge(project)}</div>
+          </div>
+          <div class="org-node">
+            <div class="level-title"><i class="fa-solid fa-user-tie"></i> Subdirector</div>
+            <div>${project.subdirectorName}</div>
+            <div>${getTaskBadge(project)}</div>
+          </div>
+          <div class="org-node">
+            <div class="level-title"><i class="fa-solid fa-user-tie"></i> Gerente</div>
+            <div>${project.managerName}</div>
+            <div>${getTaskBadge(project)}</div>
+          </div>
+          <div class="org-node">
+            <div class="level-title"><i class="fa-solid fa-user"></i> Desarrollador</div>
+            <div>${project.developerName}</div>
+            <div>${getTaskBadge(project)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Muestra el proyecto actual en el panel de organigrama
+    function displayCurrentProject() {
+      const container = document.getElementById("orgChartContainer");
+      if(currentProjectIndex === -1 || !projects[currentProjectIndex]) {
+        container.innerHTML = '<p class="text-center">No hay proyecto registrado.</p>';
+      } else {
+        container.innerHTML = createOrgChart(projects[currentProjectIndex]);
+      }
+    }
+
+    // Actualiza la tabla del modal de mantenimiento
+    function updateMaintenanceTable() {
+      const tbody = document.querySelector("#maintenanceTable tbody");
+      tbody.innerHTML = "";
+      projects.forEach((project, index) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${project.projectKey}</td>
+          <td>${project.projectDescription}</td>
+          <td>${getTaskBadge(project)}</td>
+          <td>${project.taskStatus}</td>
+          <td>
+            <button class="btn btn-sm btn-secondary me-1" onclick="viewProject(${index})" title="Visualizar">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+            <button class="btn btn-sm btn-primary me-1" onclick="editProject(${index})" title="Editar">
+              <i class="fa-solid fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteProject(${index})" title="Borrar">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Visualiza un proyecto (cargar en el panel) desde el modal de mantenimiento
+    function viewProject(index) {
+      currentProjectIndex = index;
+      displayCurrentProject();
+      const modalEl = document.getElementById("maintenanceModal");
+      bootstrap.Modal.getInstance(modalEl).hide();
+      showAlert("Proyecto cargado en el panel.", "success");
+    }
+
+    // Carga los datos de un proyecto en el formulario para editarlo
+    function editProject(index) {
+      const project = projects[index];
+      document.getElementById("projectKey").value = project.projectKey;
+      document.getElementById("projectDescription").value = project.projectDescription;
+      document.getElementById("directorName").value = project.directorName;
+      document.getElementById("subdirectorName").value = project.subdirectorName;
+      document.getElementById("managerName").value = project.managerName;
+      document.getElementById("developerName").value = project.developerName;
+      document.getElementById("task").value = project.task;
+      document.getElementById("taskStatus").value = project.taskStatus;
+      document.getElementById("daysAssigned").value = project.daysAssigned;
+      document.getElementById("startDate").value = project.startDate;
+      document.getElementById("endDate").value = project.endDate;
+      editingIndex = index;
+      currentProjectIndex = index;
+      displayCurrentProject();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      const modalEl = document.getElementById("maintenanceModal");
+      bootstrap.Modal.getInstance(modalEl).hide();
+    }
+
+    // Elimina un proyecto tras confirmar
+    function deleteProject(index) {
+      if(confirm("¿Está seguro de eliminar este proyecto?")) {
+        projects.splice(index, 1);
+        updateLocalStorage();
+        showAlert("Proyecto eliminado.", "warning");
+        // Actualiza el índice del proyecto mostrado si es necesario
+        currentProjectIndex = projects.length ? projects.length - 1 : -1;
+        editingIndex = -1;
+        updateMaintenanceTable();
+        displayCurrentProject();
+      }
+    }
+
+    // Elimina el proyecto actualmente cargado en el panel
+    function deleteCurrentProject() {
+      if(currentProjectIndex === -1) {
+        showAlert("No hay proyecto para borrar.", "danger");
+        return;
+      }
+      deleteProject(currentProjectIndex);
+    }
+
+    /************************************
+     * CONTROL DEL FORMULARIO Y EVENTOS
+     ************************************/
+    document.getElementById("startDate").addEventListener("change", updateFinalDate);
+    document.getElementById("daysAssigned").addEventListener("input", updateFinalDate);
+
+    (function() {
+      "use strict";
+      const form = document.getElementById("projectForm");
+      form.addEventListener("submit", function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Valida el formulario (HTML5)
+        if(!form.checkValidity()){
+          form.classList.add("was-validated");
+          showAlert("Revise los campos obligatorios.", "danger");
+          return;
+        }
+
+        // Recalcula la fecha final y verifica que se haya calculado
+        updateFinalDate();
+        const computedEndDate = document.getElementById("endDate").value;
+        if(!computedEndDate){
+          showAlert("No se pudo calcular la fecha final. Verifique la fecha de inicio y los días asignados.", "danger");
+          return;
+        }
+
+        // Crea el objeto proyecto con todos los campos
+        const projectObj = {
+          projectKey: document.getElementById("projectKey").value.trim(),
+          projectDescription: document.getElementById("projectDescription").value.trim(),
+          directorName: document.getElementById("directorName").value.trim(),
+          subdirectorName: document.getElementById("subdirectorName").value.trim(),
+          managerName: document.getElementById("managerName").value.trim(),
+          developerName: document.getElementById("developerName").value.trim(),
+          task: document.getElementById("task").value.trim(),
+          taskStatus: document.getElementById("taskStatus").value,
+          daysAssigned: document.getElementById("daysAssigned").value,
+          startDate: document.getElementById("startDate").value,
+          endDate: computedEndDate
+        };
+
+        // Si se está editando, actualiza el proyecto; de lo contrario, lo agrega
+        if(editingIndex > -1) {
+          projects[editingIndex] = projectObj;
+          currentProjectIndex = editingIndex;
+          showAlert("Proyecto actualizado exitosamente.", "success");
+          editingIndex = -1;
+        } else {
+          projects.push(projectObj);
+          currentProjectIndex = projects.length - 1;
+          showAlert("Proyecto guardado exitosamente.", "success");
+        }
+        updateLocalStorage();
+        updateMaintenanceTable();
+        displayCurrentProject();
+        form.reset();
+        form.classList.remove("was-validated");
+      }, false);
+    })();
+
+    /************************************
+     * EVENTOS PARA BOTONES DE ACCIÓN
+     ************************************/
+    document.getElementById("maintenanceBtn").addEventListener("click", function() {
+      const modalEl = document.getElementById("maintenanceModal");
+      updateMaintenanceTable();
+      new bootstrap.Modal(modalEl).show();
+    });
+
+    document.getElementById("deleteCurrentBtn").addEventListener("click", deleteCurrentProject);
+
+    // Al cargar la página, se actualiza la vista del panel
+    displayCurrentProject();
+  </script>
+</body>
+</html>
